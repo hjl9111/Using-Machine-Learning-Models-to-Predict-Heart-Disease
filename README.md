@@ -1,5 +1,11 @@
 # Using Machine Learning Models to Predict Heart Disease
 
+**Task: Binary Classification**
+
+**Topic: Machine Learning, Heart Disease Diagnosis Prediction**
+
+**Language: R**
+
 ## Objective
 
 To perform predictions to identify patients with a high risk of developing heart disease through utilization of various machine learning models as well as to speed up the diagnostic process based on the medical information provided, hence allowing for early preventive measures.
@@ -20,4 +26,19 @@ Contains data from 920 patients. Features: 14 of 76 variables are available for 
 
 #### Data Preprocessing
 
-Removed `ca` (number of major vessels colored) and `thal` (thalassemia), features with more than half of the observations containing missing (`NA`) values. For remaining features, missing (`NA`) values in continuous variables are replaced with median, and categorical variables are replaced with mode. Performed feature selection using Forward Stepwise Selection with Adjusted R^2 and Backward Stepwise Selection with Cp, selecting the same 10 predictors and dropping `trestbps` (resting blood pressure).
+Removed `ca` (number of major vessels colored) and `thal` (thalassemia), features with more than half of the observations containing missing (`NA`) values. For remaining features, missing (`NA`) values in continuous variables are replaced with median, and categorical variables are replaced with mode. 
+
+#### Feature Selection
+
+Performed feature selection using Forward Stepwise Selection with Adjusted R<sup>2</sup> and Backward Stepwise Selection with Cp, selecting the same 10 predictors and dropping `trestbps` (resting blood pressure). Split data into 80% training and 20% testing. 
+
+#### Exploratory Modeling 
+
+5 five machine learning models suitable for binary classification are used for heart disease diagnosis prediction: 
+
+- Logistic Regression
+- Support Vector Machine (SVM)
+- K-Nearest Neighbors (KNN)
+- Random Forest
+- Gradient Boosting Machine (GBM)
+
