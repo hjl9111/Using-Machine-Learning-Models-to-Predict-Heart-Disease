@@ -2,7 +2,7 @@
 
 **Group Members: Helen Liang, Ivy Zhao, Xiaotong Zhao**
 
-**Task: Binary Classification**
+**Task: Classification (Binary)**
 
 **Topic: Machine Learning, Heart Disease Diagnosis Prediction**
 
@@ -44,3 +44,28 @@ Performed feature selection using Forward Stepwise Selection with Adjusted R<sup
 - Random Forest
 - Gradient Boosting Machine (GBM)
 
+The models above are also implemented with k-fold cross-validation with k = 5 to tune hyperparameters to achieve optimal model performance and avoid overfitting since a small dataset is used. 
+
+Elastic net regularization is also used along with k-fold CV for tuning in logistic regression to avoid overfitting. 
+
+## Evaluation
+
+7 metrics are used to evaluate model performances for all 10 models (with and without k-fold CV):
+
+- Training error
+- Testing error
+- Accuracy
+- Sensitivity
+- Specificity
+- F1 score
+- AUCROC score
+
+GBM has the highest AUCROC score of 0.903, followed by Random Forest, Logistic Regression, KNN, and SVM with AUCROC scores of 0.896, 0.884, 0.802, and 0.791, respectively.
+
+All models achieved promising performance on classification tasks with high accuracies above 80%. All models performed well on other evaluation metrics, including F1 score, sensitivity, specificity, and AUCROC score.
+
+## Conclusion
+
+In combination of all 7 metrics, Random Forest outperformed other models in predicting heart disease, which might be because random forest is an ensemble method that can effectively avoid overfitting in our small dataset. 
+
+In the future, we plan to find a larger dataset to train the model, as the key weakness of our current model is the small dataset size. Additionally, we plan to incorporate deep learning algorithms, such as neural networks, which offer automatic feature selection and can better capture non-linear relationships.
