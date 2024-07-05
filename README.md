@@ -1,5 +1,7 @@
 # Using Machine Learning Models to Predict Heart Disease
 
+**Group Members: Helen Liang, Ivy Zhao, Xiaotong Zhao**
+
 **Task: Binary Classification**
 
 **Topic: Machine Learning, Heart Disease Diagnosis Prediction**
