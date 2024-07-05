@@ -66,6 +66,12 @@ All models achieved promising performance on classification tasks with high accu
 
 ## Conclusion
 
-In combination of all 7 metrics, Random Forest outperformed other models in predicting heart disease, which might be because random forest is an ensemble method that can effectively avoid overfitting in our small dataset. 
+In combination with all 7 metrics, Random Forest outperformed other models in predicting heart disease, which might be because random forest is an ensemble method that can effectively avoid overfitting in our small dataset. 
 
-In the future, we plan to find a larger dataset to train the model, as the key weakness of our current model is the small dataset size. Additionally, we plan to incorporate deep learning algorithms, such as neural networks, which offer automatic feature selection and can better capture non-linear relationships.
+In the future, we plan to find a larger dataset to train the model, as the key weakness of our current model is the small dataset size. Additionally, we plan to incorporate deep learning algorithms, such as neural networks, which offer automatic feature selection and can better capture non-linear relationships.\
+
+## References
+
+Centers for Disease Control and Prevention. (2023, May 15). Heart disease facts. Centers for Disease Control and Prevention. 
+
+Janosi Andras, Steinbrunn William, Pfisterer MaDhias, and Detrano Robert. (1988). Heart Disease. UCI Machine Learning Repository.
