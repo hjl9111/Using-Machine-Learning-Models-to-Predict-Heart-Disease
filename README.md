@@ -14,4 +14,10 @@ Early detection and intervention can significantly decrease the risk of heart di
 
 The [Heart Disease](https://archive.ics.uci.edu/dataset/45/heart+disease) dataset is provided by the **UC Irvine Machine Learning Repository**, containing combined data from the Cleveland, Hungary, Switzerland, and VA Long Beach databases.
 
-Contains data from 920 patients. Features: 14 of 76 variables are available for public use, encompassing demographic information, physiological measurements, and patient medical history. Outcome variable: 1 in total, indicating the presense of heart disease. 
+Contains data from 920 patients. Features: 14 of 76 variables are available for public use, encompassing demographic information, physiological measurements, and patient medical history. Outcome variable: `num`, converted from continuous to factor, indicating the absence or presence of heart disease. 
+
+## Approach
+
+#### Data Preprocessing
+
+Removed `ca` (number of major vessels colored) and `thal` (thalassemia), features with more than half of the observations containing missing (`NA`) values. For remaining features, missing (`NA`) values in continuous variables are replaced with median, and categorical variables are replaced with mode. Performed feature selection using Forward Stepwise Selection with Adjusted R^2 and Backward Stepwise Selection with Cp, selecting the same 10 predictors and dropping `trestbps` (resting blood pressure).
