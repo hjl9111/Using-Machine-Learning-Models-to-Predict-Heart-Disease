@@ -1,0 +1,730 @@
+---
+title: "Final Project Code"
+author: "Helen Liang, Ivy Zhao, Xiaotong Zhao"
+date: "05/02/2024"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_knit$set(root.dir = "/Users/zhaoxiaotong/2024/2024Spring/ML in PH", echo = TRUE)
+```
+
+# Predicting Heart Disease
+
+The `heart` dataset (source: UCI Machine Learning Repository) contains 920 observations and 76 variables. However, we're only using the following 14 of the 76 variables in our study: 
+
+* `age`: patient age (in years)
+* `sex`: gender of patient; 0 = male, 1 = female
+* `cp`: chest pain type; 1 = typical angina, 2 = atypical angina, 3 = non-anginal pain, 4 = asymptomatic
+* `trestbps`: resting blood pressure (in mmHg)
+* `chol`: serum cholesterol (in mg/dl)
+* `fbs`: fasting blood sugar > 120 mg/dl; 0 = false, 1 = true
+* `restecg`: resting electrocardiographic results; 0 = normal, 1 = having ST-T wave abnormality, 2 = showing probable or definite left ventricular hypertrophy by Ester's criteria
+* `thalach`: maximum heart race achieved
+* `exang`: exercise included angina; 0 = no, 1 = yes
+* `oldpeak`: ST depression induced by exercise relative to rest
+* `slope`: the slope of the peak exercise ST segment; 1 = upsloping, 2 = flat, 3 = downsloping
+* `ca`: number of major vessels (0-3) colored by fluoroscopy
+* `thal`: thalassemia; 3 = normal, 6 = fixed defect, 7 = reversible defect
+* `num`: diagosis of heart disease; 0 = no heart disease, 1 = have heart disease
+
+# Load, Merge, and Recode Data
+```{r}
+library(dplyr)
+
+cleveland <- read.csv("processed.cleveland.csv")
+hungarian <- read.csv("processed.hungarian.csv")
+switzerland <- read.csv("processed.switzerland.csv")
+va <- read.csv("processed.va.csv")
+
+nrow(cleveland)
+nrow(hungarian)
+nrow(switzerland)
+nrow(va)
+
+heart <- rbind(cleveland, hungarian, switzerland, va)
+
+# check for missing values
+heart[heart == "?"] <- NA
+sum(is.na(heart))
+sapply(heart, function(x) sum(is.na(x)))
+
+nrow(heart)
+ncol(heart)
+```
+# Deal with NA's
+```{r}
+#convert integers to numeric, standardization and replace na with median
+heart$age <- as.numeric(heart$age)
+heart$age <- scale(heart$age)
+heart$age[is.na(heart$age)] <- median(heart$age, na.rm = TRUE)
+
+heart$trestbps <- as.numeric(heart$trestbps)
+heart$trestbps <- scale(heart$trestbps)
+heart$trestbps[is.na(heart$trestbps)] <- median(heart$trestbps, na.rm = TRUE)
+
+heart$chol <- as.numeric(heart$chol)
+heart$chol <- scale(heart$chol)
+heart$chol[is.na(heart$chol)] <- median(heart$chol, na.rm = TRUE)
+
+heart$thalach <- as.numeric(heart$thalach)
+heart$thalach <- scale(heart$thalach)
+heart$thalach[is.na(heart$thalach)] <- median(heart$thalach, na.rm = TRUE)
+
+heart$oldpeak <- as.numeric(heart$oldpeak)
+heart$oldpeak <- scale(heart$oldpeak)
+heart$oldpeak[is.na(heart$oldpeak)] <- median(heart$oldpeak, na.rm = TRUE)
+
+#replace NA values in the character variables into mode
+heart$fbs <- ifelse(is.na(heart$fbs), names(which.max(table(heart$fbs))), heart$fbs)
+
+heart$restecg <- ifelse(is.na(heart$restecg), names(which.max(table(heart$restecg))), heart$restecg)
+
+heart$exang <- ifelse(is.na(heart$exang), names(which.max(table(heart$exang))), heart$exang)
+
+heart$slope <- ifelse(is.na(heart$slope), names(which.max(table(heart$slope))), heart$slope)
+
+#remove ca & thal, as more than half of their observations are mising values.
+heart$ca <- NULL
+heart$thal <- NULL
+
+#check for missing values
+sum(is.na(heart))
+sapply(heart, function(x) sum(is.na(x)))
+
+nrow(heart)
+ncol(heart)
+```
+
+# Correlation Heatmap
+```{r}
+library(reshape2)
+
+cor_matrix <- cor(heart[, c("age", "trestbps", "chol", "thalach", "oldpeak")])
+melted_cor_matrix <- melt(cor_matrix)
+
+library(ggplot2)
+
+ggplot(melted_cor_matrix, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +  
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), 
+                       space = "Lab", name="Correlation") +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, size = 8, hjust = 1), 
+    axis.text.y = element_text(size = 8) 
+  ) +
+  labs(x = "", y = "", title = "") 
+```
+
+
+#Feature Selection
+```{R}
+library(leaps)
+# Forward Stepwise Selection with Adjusted R^2
+forward_fit <- regsubsets(num ~ ., data = heart, method = "forward", nvmax = 11)
+forward_sum <- summary(forward_fit)
+best_ind_for <- which.max(forward_sum$adjr2)
+best_model_forward <- coef(forward_fit, best_ind_for)
+best_model_forward
+
+# Backward Stepwise Selection with Cp
+backward_fit <- regsubsets(num ~ ., data = heart, method = "backward", nvmax = 11)
+backward_sum <- summary(backward_fit)
+best_ind_back <- which.min(backward_sum$cp)
+best_model_backward <- coef(backward_fit, best_ind_back)
+best_model_backward
+
+# age, sex, cp, chol, fbs1,  restecg, thalach, exang, oldpeak, slope
+
+```
+
+```{R}
+#convert character variables into factors
+heart$sex <- factor(heart$sex, 
+                    levels = c(0, 1), 
+                    labels = c("male", "female"))
+
+heart$cp <- factor(heart$cp, 
+                    levels = c(1, 2, 3, 4), 
+                    labels = c("typical angina", "atypial angina", "non-anginal pain", "asymptomatic"))
+
+heart$fbs <- factor(heart$fbs, 
+                    levels = c(0, 1), 
+                    labels = c("false", "true"))
+
+heart$restecg <- factor(heart$restecg, 
+                    levels = c(0, 1, 2), 
+                    labels = c("normal", "abonormal", "left ventricular hypertrophy"))
+
+heart$exang <- factor(heart$exang, 
+                    levels = c(0, 1), 
+                    labels = c("no", "yes"))
+
+heart$slope <- factor(heart$slope, 
+                    levels = c(1, 2, 3), 
+                    labels = c("upsloping", "flat", "downsloping"))
+
+heart$num <- as.integer(heart$num > 0)
+heart$num <- factor(heart$num, 
+                    levels = c(0, 1), 
+                    labels = c("no", "yes"))
+#check for unbalanced label
+summary(heart$num)
+```
+
+# Initial Data Preparation
+```{r}
+library(tidyverse)
+library(caret)
+
+set.seed(123)
+
+#select the predictors from feature selection
+heart <- heart %>% 
+         select(age, sex, cp, chol, fbs, restecg, thalach, exang, oldpeak,slope,num)
+head(heart)
+
+tr_ind <- sample(1:nrow(heart), 0.8 * nrow(heart))
+heart_train <- heart[tr_ind, ]
+heart_test <- heart[-tr_ind, ]
+
+```
+
+We will use the following machine learning models for heart disease diagnosis: 
+\newline
+1. Logistic Regression
+\newline
+2. K-Nearest Neighbors (KNN)
+\newline
+3. Random Forest
+\newline
+4. Gradient Boosting
+\newline
+5. Support Vector Machines (SVM)
+
+First, we will fit models using the above machine learning techniques and compute the metrics (see below) for validating model performances. Then we will use k-folds cross-validation (CV) to improve on all models. 
+
+Metrics for validating model performances:
+\newline
+1. Compute training & testing errors
+\newline
+2. $$\text{Accuracy} = \frac{\text{Number of correct predictions}}{\text{Total number of predictions}} = \frac{TP+TN}{TP+TN+FP+FN} \times 100 \%$$
+\newline
+$$\text{sensitivity (TPR)} = \frac{TP}{TP+FN}$$
+\newline
+$$\text{specificity (FPR)} = \frac{TN}{TN+FP}$$
+\newline
+3. Calculate AUC for each model
+\newline
+4. Plot AUCROC for all models on the same plot and compare
+
+\newpage
+
+# Logistic Regression Model
+```{r, echo = TRUE, warning = FALSE}
+library(caret)
+
+set.seed(123)
+
+logistic_model <- glm(num ~., data = heart_train, family = "binomial")
+
+#training error
+predict_train_prob <- predict(logistic_model, type = "response")
+predict_train_label <- ifelse(predict_train_prob > 0.5, "yes", "no")
+train_error <- mean(predict_train_label != heart_train$num)
+print(train_error)
+#training error:0.1779891
+
+#testing error
+predict_test_prob <- predict(logistic_model, newdata = heart_test, type = "response")
+predict_test_label <- ifelse(predict_test_prob > 0.5, "yes", "no")
+test_error <- mean(predict_test_label != heart_test$num)
+print(test_error)
+#testing error: 0.2065217
+
+#confusion matrix & accuracy
+predictions <- factor(predict_test_label, levels = c("no", "yes"))
+y_test <- factor(heart_test$num, levels = c("no", "yes"))
+
+confusion_matrix <- confusionMatrix(predictions, y_test,mode = "everything")
+print(confusion_matrix)
+#Accuracy :  0.7935
+#F1 : 0.7286     
+
+library(pROC)
+
+#aucroc
+roc_logistic <- roc(heart_test$num, predict_test_prob)
+auc_logistic <- auc(roc_logistic)
+print(auc_logistic)
+#Area under the curve: 0.8841
+
+```
+
+\newpage
+# Logistic regression Model using Elastic Net and cross-validation for regulation.
+```{r}
+library(glmnet)
+library(caret)
+set.seed(123)
+
+X_train <- heart_train[, -which(names(heart_train) == "num")]
+y_train <- heart_train$num
+X_test <- heart_test[, -which(names(heart_test) == "num")]
+y_test <- heart_test$num
+
+# Set up the trainControl for 5-fold cross-validation
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Define the tuning grid for alpha and lambda
+grid <- expand.grid(alpha = seq(0, 1, by = 0.1), lambda = seq(0.05, 0.1, by = 0.002))
+
+#Perform 5-fold cross-validation to tune hyperparameters
+logi_reg_model <- train(x = X_test,y = y_test,method = "glmnet",trControl = ctrl,
+                        tuneGrid = grid,metric = "Accuracy")
+print(logi_reg_model)
+# The final values used for the model were alpha = 0 and lambda = 0.05.
+logi_reg_model$bestTune
+
+# Evaluate the model
+predictions_logiregu <- predict(logi_reg_model, X_test)
+confusion_matrix_logiregu <- confusionMatrix(predictions_logiregu, y_test, mode = "everything")
+print(confusion_matrix_logiregu) 
+# Accuracy : 0.7283
+#F1 : 0.6667    
+
+# training error
+train_predict_logiregu <- predict(logi_reg_model, X_train)
+train_error_logiregu <- mean(train_predict_logiregu != y_train)
+train_error_logiregu
+# training error :0.2486413
+
+# test error
+test_predict_logiregu <- predict(logi_reg_model, X_test)
+test_error_logiregu <- mean(test_predict_logiregu != y_test)
+test_error_logiregu
+# test error : 0.2717391
+
+#roc auc
+library(pROC)
+roc_logiregu <- roc(y_test, as.numeric(test_predict_logiregu), levels = rev(levels(y_test)))
+auc_logiregu <- auc(roc_logiregu)
+auc_logiregu
+#Area under the curve: 0.7208
+```
+
+# K-Nearest Neighbors (KNN) Model
+```{r}
+library(class)
+
+set.seed(123)
+
+k_seq <- seq(from = 1, to = 50, by = 1)
+
+train_error <- numeric(length(k_seq))
+test_error <- numeric(length(k_seq))
+train_accuracy <- numeric(length(k_seq))
+test_accuracy <- numeric(length(k_seq))
+train_confusion <- vector("list", length(k_seq))
+test_confusion <- vector("list", length(k_seq))
+
+
+for(i in seq_along(k_seq)){
+  k <- k_seq[i]
+  
+  knn_model <- knn3(num ~., data = heart_train, k = k)
+  
+  train_predictions <- predict(knn_model, newdata = heart_train, type = "class")
+  train_confusion[[i]] <- table(predicted = train_predictions, actual = heart_train$num)
+  train_error[i] <- mean(train_predictions != heart_train$num)
+  train_accuracy[i] <- 1 - train_error[i]
+  
+  test_predictions <- predict(knn_model, newdata = heart_test, type = "class")
+  test_confusion[[i]] <- table(predicted = test_predictions, actual = heart_test$num)
+  test_error[i] <- mean(test_predictions != heart_test$num)
+  test_accuracy[i] <- 1 - test_error[i]
+}
+
+knn_df<-data.frame(train_error,test_error)
+
+#optimal k is 12,15,16,20,22 (using test error)
+# combined with training error, optimal k is 12
+
+#training error
+print(train_error[12])
+#training error: 0.1671196
+
+#testing error
+print(test_error[12])
+#testing error: 0.1956522
+
+#confusion matrix & accuracy
+check_k <- 12
+train_confusion[[check_k]]
+test_confusion[[check_k]]
+
+test_accuracy[check_k]
+# accuracy: 0.8043478
+
+#aucroc
+set.seed(123)
+knn_model <- knn3(num ~., data = heart_train, k = 12)
+test_predictions <- predict(knn_model, newdata = heart_test, type = "class")
+roc_knn <- roc(heart_test$num, as.numeric(test_predictions))
+auc_knn <- auc(roc_knn)
+print(auc_knn)
+#Area under the curve: 0.8001
+```
+\newpage
+
+# Using K-folds to Improve K-Nearest Neighbors (KNN) Model
+```{r}
+library(caret)
+library(class)
+
+set.seed(123)
+
+train_control <- trainControl(method = "cv", number = 5, 
+                              savePredictions = "final", classProbs = TRUE)
+tune_grid <- expand.grid(k = 1:50)
+knn_model_tuned <- train(num ~., data = heart_train, method = "knn",
+                         trControl = train_control, preProcess = "scale",  tuneGrid = tune_grid)
+print(knn_model_tuned)
+# Optimal K = 35
+
+#training error
+predict_train <- predict(knn_model_tuned, newdata = heart_train, type = "raw")
+confusion_matrix <- confusionMatrix(factor(predict_train, levels = c("no", "yes")), 
+                                    factor(heart_train$num, levels = c("no", "yes")))
+train_error <- 1 - (confusion_matrix$table[1,1] + confusion_matrix$table[2,2]) /
+  sum(confusion_matrix$table)
+print(train_error)
+#training error: 0.1752717
+
+#testing error
+predict_test <- predict(knn_model_tuned, newdata = heart_test)
+confusion_matrix <- confusionMatrix(predict_test, heart_test[, ncol(heart_test)])
+test_error <- 1 - (confusion_matrix$table[1,1] + confusion_matrix$table[2,2]) /
+  sum(confusion_matrix$table)
+print(test_error)
+#testing error:0.1847826
+
+#confusion matrix & accuracy
+print(confusion_matrix)
+# when k =26,  0.8152      
+
+#aucroc
+roc_knn_tuned <- roc(heart_test$num, as.numeric(predict_test))
+auc_knn_tuned <- auc(roc_knn_tuned)
+print(auc_knn_tuned)
+#Area under the curve: 0.8023
+```
+\newpage
+
+
+# Random Forest
+```{r}
+library(randomForest)
+library(e1071)
+library(caret)
+
+set.seed(123)
+
+rf.hd <- randomForest(num ~., data = heart_train,importance=TRUE)
+
+#training error
+predict.train <- predict(rf.hd, newdata = heart_train)
+train_error <- mean(predict.train != heart_train$num)
+print(train_error) #training error = 0.001358696
+
+#testing error
+predict.test <- predict(rf.hd,newdata = heart_test)
+test_error <- mean(predict.test != heart_test$num)
+print(test_error) # testing error = 0.1793478
+
+#confusion matrix & accuracy
+x_test <- heart_test[, -which(names(heart_test) == "num")]
+y_test <- heart_test$num
+predictions <- predict(rf.hd, x_test)
+confusion_matrix <- confusionMatrix(predictions, y_test, mode = "everything")
+print(confusion_matrix) #accuracy = 0.8207, F1 = 0.7660 
+
+#aucroc
+library(pROC)
+predictions.prob <- predict(rf.hd, x_test, type = "prob")
+roc_rf <- roc(response = y_test, predictor = predictions.prob[,2])
+auc_rf <- auc(roc_rf)
+print(auc_rf) #auc = 0.8803
+```
+\newpage
+
+# Random Forest Model with K-Folds
+```{r}
+library(caret)
+
+set.seed(123)
+
+train_control <- trainControl(method = "cv", number = 10, search = "grid")
+tune_grid <- expand.grid(mtry = c(2, 4, 6, 8))
+rf_tuned <- train(num ~ ., data = heart_train, method = "rf",            
+                  metric = "Accuracy", trControl = train_control, tuneGrid = tune_grid)
+#the final value used for the model was mtry = 2.
+
+#training error
+predict.train <- predict(rf_tuned, newdata = heart_train)
+train_error <- mean(predict.train != heart_train$num)
+print(train_error) #training error =  0.07608696
+
+#testing error
+predict.test <- predict(rf_tuned,newdata = heart_test)
+test_error <- mean(predict.test != heart_test$num)
+print(test_error) #testing error = 0.1847826
+
+#confusion matrix & accuracy
+predictions_tuned <- predict(rf_tuned, x_test)
+confusion_matrix_tuned <- confusionMatrix(predictions_tuned, y_test, mode = "everything")
+print(confusion_matrix_tuned) #accuracy = , F1 = 0.7445
+
+#aucroc
+library(pROC)
+predictions.prob <- predict(rf_tuned, x_test, type = "prob")
+roc_rf_tuned <- roc(response = y_test, predictor = predictions.prob[,2])
+auc_rf_tuned <- auc(roc_rf_tuned)
+print(auc_rf_tuned) #auc = 0.8956
+```
+\newpage
+
+
+# Gradient Boosting Model
+```{r}
+library(gbm)
+library(caret)
+
+set.seed(123)
+
+unique(heart_train$num)
+heart_train$num <- ifelse(heart_train$num == "no", 0, 1)
+unique(heart_test$num)
+heart_test$num <- ifelse(heart_test$num == "no", 0, 1)
+
+boost.hd <- gbm(num ~ ., data = heart_train, distribution = "bernoulli", n.trees = 1000, interaction.depth = 1, cv.folds = 5)
+
+#training error
+predict_train <- predict(boost.hd, n.trees = 1000, type = "response", newdata = heart_train)
+predicted_train_classes <- ifelse(predict_train > 0.5, 1, 0)
+train_error <- mean(predicted_train_classes != heart_train$num)
+print(train_error) #training error = 0.1358696
+
+#testing error
+predict_test <- predict(boost.hd, n.trees = 1000, type = "response", newdata = heart_test)
+predicted_test_classes <- ifelse(predict_test > 0.5, 1, 0)
+test_error <- mean(predicted_test_classes != heart_test$num)
+print(test_error) #testing error = 0.1902174
+
+#confusion matrix & accuracy 
+predictions_test <- factor(predicted_test_classes, levels = c(0, 1), labels = c("no", "yes"))
+confusion_matrix_test <- confusionMatrix(predictions_test, factor(heart_test$num, levels = c(0, 1), labels = c("no", "yes")), mode = "everything")
+print(confusion_matrix_test) #0.8098, F1 = 0.7586      
+
+#aucroc
+library(pROC)
+predictions.prob <- predict(boost.hd, newdata = x_test, type = "response")
+y_test <- factor(y_test, levels = c("no", "yes"))
+roc_gbm <- roc(response = y_test, predictor = predictions.prob)
+auc_gbm <- auc(roc_gbm)
+print(auc_gbm) #auc = 0.8999
+```
+\newpage
+
+# Using K-folds to Improve Gradient Boosting Model
+```{r} 
+library(caret)
+library(pROC)
+
+set.seed(123)
+
+train_control <- trainControl(method = "cv", number = 10, search = "grid")
+tune_grid <- expand.grid(n.trees = c(150), interaction.depth = c(1, 3, 5),
+                         shrinkage = c(0.01), n.minobsinnode = c(5, 10, 15))
+
+heart_train$num <- as.factor(ifelse(heart_train$num == 0, "no", "yes"))
+boost_tuned <- train(num ~ ., data = heart_train, method = "gbm",
+                     metric = "Accuracy", trControl = train_control, tuneGrid = tune_grid, 
+                     verbose = FALSE)      
+
+#training error
+predict_train <- predict(boost_tuned, n.trees = 1000, type = "prob", newdata = heart_train)
+predicted_train_classes <- ifelse(predict_train[, 2] > 0.5, 1, 0) 
+train_error <- mean(predicted_train_classes != heart_test$num)
+print(train_error) #training error = 0.4959239
+
+#testing error
+predict_test <- predict(boost_tuned, n.trees = 1000, type = "prob", newdata = heart_test)
+predicted_test_classes <- ifelse(predict_test[, 2] > 0.5, 1, 0) 
+test_error <- mean(predicted_test_classes != heart_test$num)
+print(test_error) #testing error = 0.173913
+
+#confusion matrix & accuracy
+predictions_test <- factor(predicted_test_classes, levels = c(0, 1), labels = c("no", "yes"))
+conf_matrix_test <- confusionMatrix(predictions_test, y_test, mode = "everything")
+print(conf_matrix_test) #accuracy = 0.8261, F1 : 0.7681  
+
+#aucroc
+library(pROC)
+predictions.prob <- predict(boost_tuned, x_test, type = "prob")
+roc_gbm_tuned <- roc(response = y_test, predictor = predictions.prob[,2])
+auc_gbm_tuned <- auc(roc_gbm_tuned)
+print(auc_gbm_tuned) #auc = 0.9025
+```
+\newpage
+
+# Support Vector Machines (SVM) Model
+```{r}
+library(e1071)
+library(caret)
+set.seed(123)
+
+# Train the SVM model, Use radial kernel
+svm_model <- svm(num ~ ., data = heart_train, kernel = "radial")
+print(svm_model)
+
+# Extract sigma and cost from the model
+svm_model$cost
+gamma <- svm_model$gamma
+gamma
+
+# Evaluate the model
+predictions_svm <- predict(svm_model, newdata=heart_test,levels = levels(heart_test$num))
+predictions_svm <- factor(predictions_svm, levels = c("no", "yes"))
+y_test <- factor(heart_test$num, levels = c("no", "yes"))
+confusion_matrix_svm <- confusionMatrix(predictions_svm, y_test, mode = "everything")
+print(confusion_matrix_svm) 
+# Accuracy : 0.8043
+#F1 : 0.7353  
+
+# training error
+train_predict_svm <- predict(svm_model, heart_train)
+train_error_svm <- mean(train_predict_svm != heart_train$num)
+train_error_svm
+# training error :0.1576087
+
+# test error
+test_predict_svm <- predict(svm_model, heart_test)
+test_error_svm <- mean(test_predict_svm != heart_test$num)
+test_error_svm
+# test error : 0.1956522
+
+#roc auc
+library(pROC)
+roc_svm <- roc(heart_test$num, as.numeric(test_predict_svm))
+auc_svm <- auc(roc_svm)
+auc_svm 
+#Area under the curve: 0.7839
+```
+\newpage
+
+# Using K-folds to Improve Support Vector Machines (SVM) Model
+
+```{r}
+# Set up the grid of hyperparameters to tune
+sigma_values <- seq(0,0.1, by = 0.002)
+cost_values <- c(0.5, 1, 1.5)
+tune_grid_svm <- expand.grid(sigma = sigma_values, C = cost_values)
+
+
+# Set up the training control for K-fold cross-validation
+ctrl_svm <- trainControl(method = "cv",number = 5)     
+
+# Perform hyperparameter tuning using K-fold cross-validation
+svm_model_tuned <- train(num ~ .,data = heart_train, method = "svmRadial", trControl = ctrl_svm,tuneGrid = tune_grid_svm)  
+# Print the tuned SVM model
+print(svm_model_tuned)
+#The final values used for the model were sigma = 0.032 and C = 1.5..
+
+# Make predictions on the test set using the tuned model
+predictions_svm_tuned <- predict(svm_model_tuned, heart_test)
+
+# Evaluate the tuned model
+
+predictions_svm2 <- predict(svm_model_tuned, newdata=heart_test,levels = levels(heart_test$num))
+predictions_svm2 <- factor(predictions_svm_tuned, levels = c("no", "yes"))
+y_test <- factor(heart_test$num, levels = c("no", "yes"))
+confusion_matrix_svm2 <- confusionMatrix(predictions_svm2, y_test, mode = "everything")
+print(confusion_matrix_svm2) 
+
+# Accuracy :  0.8043         
+#F1 : 0.7465    
+#The final values used for the model were sigma = 0.022 and C = 1.
+
+# training error
+train_predict_svm2 <- predict(svm_model_tuned, heart_train)
+train_error_svm2 <- mean(train_predict_svm2 != heart_train$num)
+train_error_svm2
+# training error: 0.1576087
+
+# test error
+test_predict_svm2 <- predict(svm_model_tuned, heart_test)
+test_error_svm2 <- mean(test_predict_svm2 != heart_test$num)
+test_error_svm2
+# test error : 0.1902174
+
+predict_test_svm2 <- as.numeric(predict(svm_model_tuned, heart_test, probability = TRUE))
+roc_svm2 <- roc(heart_test$num, predict_test_svm2)
+auc_svm2 <- auc(roc_svm2)
+auc_svm2
+#Area under the curve:  0.7817
+
+```
+
+\newpage
+
+# Comparison of AURROC for Final Models
+```{r}
+library(pROC)
+
+
+rocobjs <- list(Logistic = roc_logistic, KNN = roc_knn_tuned, RandomForest = roc_rf_tuned, GradientBoost = roc_gbm_tuned,SVM=roc_svm2)
+methods_auc <- paste(c("Logistic", "KNN", "Random Forest", "Gradient Boost", "SVM"),
+                     "AUC = ",
+                     round(c(auc_logistic, auc_knn_tuned, auc_rf_tuned, auc_gbm_tuned,auc_svm2), 3))
+
+ggroc(rocobjs, size = 2, alpha = 0.5) +
+  scale_color_discrete(labels = methods_auc)
+```
+
+# Bar Charts Comparing Final Models
+```{r}
+library(ggplot2)
+
+#initial models
+logistic_metrics <- c("Train Error", "Test Error", "Accuracy", "Sensitivity", "Specificity", "F1 Score", "AUC")
+logistic_values <- c(0.1779, 0.2065, 0.7935, 0.6986, 0.8559, 0.7286, 0.8841)
+
+knn_metrics <- c("Train Error", "Test Error", "Accuracy", "Sensitivity", "Specificity", "F1 Score", "AUC")
+knn_values <- c(0.1752, 0.1847, 0.8207, 0.7397, 0.8739, 0.7660, 0.7796)
+
+rf_metrics <- c("Train Error", "Test Error", "Accuracy", "Sensitivity", "Specificity", "F1 Score", "AUC")
+rf_values <- c(0.0611, 0.1793, 0.8207, 0.7397, 0.8739, 0.7660, 0.8963)
+
+gbm_metrics <- c("Train Error", "Test Error", "Accuracy", "Sensitivity", "Specificity", "F1 Score", "AUC")
+gbm_values <- c(0.5027, 0.1793, 0.8027, 0.6849, 0.9099, 0.7519, 0.904)
+  
+svm_metrics <- c("Train Error", "Test Error", "Accuracy", "Sensitivity", "Specificity", "F1 Score", "AUC")
+svm_values <- c(0.1576, 0.1902, 0.8098, 0.6986, 0.8829, 0.7445, 0.7817)
+  
+data <- data.frame(
+  Model = rep(c("Logistic Regression", "KNN", "Random Forest", "Gradient Boosting", "SVM"), each = 7),
+  Metric = rep(logistic_metrics, times = 5),
+  Value = c(logistic_values, knn_values, rf_values, gbm_values, svm_values)
+)
+
+colors <- c("#9ecae2", "#6aaed6", "#4292c6", "#2271b5", "#05519c")
+ggplot(data, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +
+  theme_minimal() +
+  labs(x = "Metric", y = "Value")
+```
+```
+
